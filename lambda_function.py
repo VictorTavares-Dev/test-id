@@ -91,7 +91,7 @@ def setup_environment():
 
 # TODO: refactor docstring and code considering the new variable
 # glue_database_type as a parameter and return value
-def define_dynamodb_table_properties(database_name):
+def define_request_properties(database_name):
     possible_matches = ["db_source", "db_compartilhado"]
 
     check_for_mesh_database = any(
@@ -100,17 +100,17 @@ def define_dynamodb_table_properties(database_name):
 
     if not check_for_mesh_database:
         glue_database_type = "CDP"
-        dynamodb_table_choice_object = {
-            "default_table_properties": {
-                "table_name": "tb_assets_new",
+        request_properties_object = {
+            "default_properties": {
+                "dynamodb_table_name": "tb_assets_new",
                 "partition_key": "new_aws_account_id",
                 "environment_key": "new_aws_account_env",
                 "control_account_id_key": "control_account_id",
                 "control_cdp_account_id_key": "control_cdp_account_id",
                 "glue_database_type": glue_database_type
             },
-            "legacy_table_properties": {
-                "table_name": "tb_assets_old",
+            "legacy_properties": {
+                "dynamodb_table_name": "tb_assets_old",
                 "partition_key": "old_aws_account_id",
                 "environment_key": "old_aws_account_env",
                 "glue_database_type": glue_database_type
@@ -118,17 +118,17 @@ def define_dynamodb_table_properties(database_name):
         }
     else:
         glue_database_type = "MESH"
-        dynamodb_table_choice_object = {
-            "default_table_properties": {
-                "table_name": "tb_ddb_new",
+        request_properties_object = {
+            "default_properties": {
+                "dynamodb_table_name": "tb_ddb_new",
                 "partition_key": "new_aws_account_id",
                 "database_name_key": "new_database_name",
                 "environment_key": "new_aws_account_env",
                 "control_account_id_key": "control_account_id",
                 "glue_database_type": glue_database_type
             },
-            "legacy_table_properties": {
-                "table_name": "tb_ddb_old",
+            "legacy_properties": {
+                "dynamodb_table_name": "tb_ddb_old",
                 "partition_key": "old_aws_account_id",
                 "database_name_key": "old_database_name",
                 "environment_key": "old_aws_account_env",
@@ -136,12 +136,12 @@ def define_dynamodb_table_properties(database_name):
             }
         }
 
-    return glue_database_type, dynamodb_table_choice_object
+    return glue_database_type, request_properties_object
 
 
 def get_item(
     table_contents,
-    table_name,
+    dynamodb_table_name,
     partition_key,
     account_id
 ):
@@ -150,7 +150,7 @@ def get_item(
         "Error": ""
     }
 
-    for item in table_contents[table_name]["Items"]:
+    for item in table_contents[dynamodb_table_name]["Items"]:
         if account_id == item["Item"][partition_key]:
             response["Item"] = item["Item"]
             break
@@ -218,27 +218,27 @@ def define_control_account_id(
 
 def retrieve_control_account_id_from_item(
     table_contents,
-    dynamodb_table_choice_object: dict,
+    request_properties_object: dict,
     account_id: str
 ):
     control_account_id = None
 
-    for key in dynamodb_table_choice_object.keys():
+    for key in request_properties_object.keys():
 
         # TODO: Verify how this method is implemented and if it is necessary
         # to log the table being queried
-        print(f"Querying {repr(dynamodb_table_choice_object[key]['table_name'])} table.")
+        print(f"Querying {repr(request_properties_object[key]['dynamodb_table_name'])} table.")
 
         query_item_response = get_item(
             table_contents,
-            dynamodb_table_choice_object[key]["table_name"],
-            dynamodb_table_choice_object[key]["partition_key"],
+            request_properties_object[key]["dynamodb_table_name"],
+            request_properties_object[key]["partition_key"],
             account_id
         )
 
         if (
             query_item_response["Error"] == "No item was found"
-            and key == "default_table_properties"
+            and key == "default_properties"
         ):
             print(
                 f"No item was found in the default table. Proceeding to query the legacy table."
@@ -247,7 +247,7 @@ def retrieve_control_account_id_from_item(
 
         if (
             query_item_response["Item"] is None
-            and key == "legacy_table_properties"
+            and key == "legacy_properties"
         ):
             print(
                 f"No item was found in the legacy table."
@@ -260,7 +260,7 @@ def retrieve_control_account_id_from_item(
         print(f"Defining control account ID.")
         control_account_id = define_control_account_id(
             item=query_item_response["Item"],
-            table_properties=dynamodb_table_choice_object[key]
+            table_properties=request_properties_object[key]
         )
 
         print(f"Retrieved control account ID: {repr(control_account_id)}")
@@ -275,12 +275,12 @@ def main():
     # database_name = "db_source_teste"
     # account_id = "111111111111"
 
-    # dynamodb_table_choice_object = define_dynamodb_table_properties(
+    # request_properties_object = define_request_properties(
     #     database_name
     # )
     # control_account_id = retrieve_control_account_id_from_item(
     #     table_contents,
-    #     dynamodb_table_choice_object,
+    #     request_properties_object,
     #     account_id
     # )
 
@@ -290,12 +290,12 @@ def main():
     # database_name = "db_compartilhado_teste"
     # account_id = "222222222222"
 
-    # dynamodb_table_choice_object = define_dynamodb_table_properties(
+    # request_properties_object = define_request_properties(
     #     database_name
     # )
     # control_account_id = retrieve_control_account_id_from_item(
     #     table_contents,
-    #     dynamodb_table_choice_object,
+    #     request_properties_object,
     #     account_id
     # )
 
@@ -305,12 +305,12 @@ def main():
     # database_name = "rt2"
     # account_id = "444444444444"
 
-    # dynamodb_table_choice_object = define_dynamodb_table_properties(
+    # request_properties_object = define_request_properties(
     #     database_name
     # )
     # control_account_id = retrieve_control_account_id_from_item(
     #     table_contents,
-    #     dynamodb_table_choice_object,
+    #     request_properties_object,
     #     account_id
     # )
 
@@ -321,12 +321,12 @@ def main():
     # database_name = "rt2"
     # account_id = "333333333333"
 
-    # dynamodb_table_choice_object = define_dynamodb_table_properties(
+    # request_properties_object = define_request_properties(
     #     database_name
     # )
     # control_account_id = retrieve_control_account_id_from_item(
     #     table_contents,
-    #     dynamodb_table_choice_object,
+    #     request_properties_object,
     #     account_id
     # )
 
@@ -338,7 +338,7 @@ def main():
     print(f"User account ID: {repr(account_id)}")
     print(f"Requested database name: {repr(database_name)}")
 
-    glue_database_type, dynamodb_table_choice_object = define_dynamodb_table_properties(
+    glue_database_type, request_properties_object = define_request_properties(
         database_name
     )
 
@@ -347,7 +347,7 @@ def main():
     print("Retrieving control account ID.")
     control_account_id = retrieve_control_account_id_from_item(
         table_contents,
-        dynamodb_table_choice_object,
+        request_properties_object,
         account_id
     )
 
